@@ -36,27 +36,15 @@ type _ports struct {
 }
 
 type _addr4 struct {
-	Src     [4]byte
-	Dst     [4]byte
-	SrcPort uint16
-	DstPort uint16
+	Src [4]byte
+	Dst [4]byte
+	_ports
 }
 
 type _addr6 struct {
 	Src [16]byte
 	Dst [16]byte
 	_ports
-}
-
-type _addrUnix struct {
-	Src [108]byte
-	Dst [108]byte
-}
-
-func newV2Header() *Header {
-	return &Header{
-		Version: 2,
-	}
 }
 
 func parseVersion2(br *bufio.Reader) (*Header, error) {
@@ -66,7 +54,9 @@ func parseVersion2(br *bufio.Reader) (*Header, error) {
 		return nil, ErrCantReadProtocolVersionAndCommand
 	}
 
-	hdr := newV2Header()
+	hdr := &Header{
+		Version: 2,
+	}
 
 	// Read the 13th byte, protocol version and command
 	b13, err := br.ReadByte()
