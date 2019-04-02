@@ -1,4 +1,35 @@
+// Package proxyproto implements Proxy Protocol (v1 and v2) parser and writer, as per specification:
+// http://www.haproxy.org/download/1.5/doc/proxy-protocol.txt
+
 package proxyproto
+
+import (
+	"bufio"
+	"bytes"
+	"errors"
+	"io"
+	"net"
+	"time"
+)
+
+var (
+	// Protocol
+	SIGV1 = []byte{'\x50', '\x52', '\x4F', '\x58', '\x59'}
+	SIGV2 = []byte{'\x0D', '\x0A', '\x0D', '\x0A', '\x00', '\x0D', '\x0A', '\x51', '\x55', '\x49', '\x54', '\x0A'}
+
+	ErrCantReadProtocolVersionAndCommand    = errors.New("Can't read proxy protocol version and command")
+	ErrCantReadAddressFamilyAndProtocol     = errors.New("Can't read address family or protocol")
+	ErrCantReadLength                       = errors.New("Can't read length")
+	ErrCantResolveSourceUnixAddress         = errors.New("Can't resolve source Unix address")
+	ErrCantResolveDestinationUnixAddress    = errors.New("Can't resolve destination Unix address")
+	ErrNoProxyProtocol                      = errors.New("Proxy protocol signature not present")
+	ErrUnknownProxyProtocolVersion          = errors.New("Unknown proxy protocol version")
+	ErrUnsupportedProtocolVersionAndCommand = errors.New("Unsupported proxy protocol version and command")
+	ErrUnsupportedAddressFamilyAndProtocol  = errors.New("Unsupported address family and protocol")
+	ErrInvalidLength                        = errors.New("Invalid length")
+	ErrInvalidAddress                       = errors.New("Invalid address")
+	ErrInvalidPortNumber                    = errors.New("Invalid port number")
+)
 
 // ProtocolVersionAndCommand represents proxy protocol version and command.
 type ProtocolVersionAndCommand byte
@@ -8,9 +39,12 @@ const (
 	PROXY = '\x21'
 )
 
-var supportedCommand = map[ProtocolVersionAndCommand]bool{
-	LOCAL: true,
-	PROXY: true,
+func isSupportedCommand(command ProtocolVersionAndCommand) bool {
+	switch command {
+	case LOCAL, PROXY:
+		return true
+	}
+	return false
 }
 
 // IsLocal returns true if the protocol version is \x2 and command is LOCAL, false otherwise.
@@ -28,16 +62,6 @@ func (pvc ProtocolVersionAndCommand) IsUnspec() bool {
 	return !(pvc.IsLocal() || pvc.IsProxy())
 }
 
-func (pvc ProtocolVersionAndCommand) toByte() byte {
-	if pvc.IsLocal() {
-		return LOCAL
-	} else if pvc.IsProxy() {
-		return PROXY
-	}
-
-	return LOCAL
-}
-
 // AddressFamilyAndProtocol represents address family and transport protocol.
 type AddressFamilyAndProtocol byte
 
@@ -51,13 +75,12 @@ const (
 	UnixDatagram = '\x32'
 )
 
-var supportedTransportProtocol = map[AddressFamilyAndProtocol]bool{
-	TCPv4:        true,
-	UDPv4:        true,
-	TCPv6:        true,
-	UDPv6:        true,
-	UnixStream:   true,
-	UnixDatagram: true,
+func isSupportedTransportProtocol(proto AddressFamilyAndProtocol) bool {
+	switch proto {
+	case TCPv4, UDPv4, TCPv6, UDPv6, UnixStream, UnixDatagram:
+		return true
+	}
+	return false
 }
 
 // IsIPv4 returns true if the address family is IPv4 (AF_INET4), false otherwise.
@@ -90,20 +113,103 @@ func (ap AddressFamilyAndProtocol) IsUnspec() bool {
 	return (0x00 == ap&0xF0) || (0x00 == ap&0x0F)
 }
 
-func (ap AddressFamilyAndProtocol) toByte() byte {
-	if ap.IsIPv4() && ap.IsStream() {
-		return TCPv4
-	} else if ap.IsIPv4() && ap.IsDatagram() {
-		return UDPv4
-	} else if ap.IsIPv6() && ap.IsStream() {
-		return TCPv6
-	} else if ap.IsIPv6() && ap.IsDatagram() {
-		return UDPv6
-	} else if ap.IsUnix() && ap.IsStream() {
-		return UnixStream
-	} else if ap.IsUnix() && ap.IsDatagram() {
-		return UnixDatagram
+func validateLeastAddressLen(ap AddressFamilyAndProtocol, len uint16) bool {
+	switch {
+	case ap.IsIPv4():
+		return len >= lengthV4
+	case ap.IsIPv6():
+		return len >= lengthV6
+	case ap.IsUnix():
+		return len >= lengthUnix
+	}
+	return false
+}
+
+// Header is the placeholder for proxy protocol header.
+type Header struct {
+	Version byte
+
+	// v1 and v2
+	SourceAddress      net.IP
+	DestinationAddress net.IP
+	SourcePort         uint16
+	DestinationPort    uint16
+
+	// v2 specific
+	Command           ProtocolVersionAndCommand
+	TransportProtocol AddressFamilyAndProtocol
+}
+
+// EqualTo returns true if headers are equivalent, false otherwise.
+func (h *Header) EqualTo(q *Header) bool {
+	if h == nil || q == nil {
+		return false
+	}
+	if h.Command.IsLocal() {
+		return true
+	}
+	return h.TransportProtocol == q.TransportProtocol &&
+		h.SourceAddress.String() == q.SourceAddress.String() &&
+		h.DestinationAddress.String() == q.DestinationAddress.String() &&
+		h.SourcePort == q.SourcePort &&
+		h.DestinationPort == q.DestinationPort
+}
+
+// WriteTo renders a proxy protocol header in a format to write over the wire.
+func (h *Header) WriteTo(w io.Writer) (int64, error) {
+	switch h.Version {
+	case 1:
+		return h.writeVersion1(w)
+	case 2:
+		return h.writeVersion2(w)
+	default:
+		return 0, ErrUnknownProxyProtocolVersion
+	}
+}
+
+// Read identifies the proxy protocol version and reads the remaining of
+// the header, accordingly.
+//
+// If proxy protocol header signature is not present, the reader buffer remains untouched
+// and is safe for reading outside of this code.
+//
+// If proxy protocol header signature is present but an error is raised while processing
+// the remaining header, assume the reader buffer to be in a corrupt state.
+// Also, this operation will block until enough bytes are available for peeking.
+func Read(reader *bufio.Reader) (*Header, error) {
+	// In order to improve speed for small non-PROXYed packets, take a peek at the first byte alone.
+	if b1, err := reader.Peek(1); err == nil && (bytes.Equal(b1[:1], SIGV1[:1]) || bytes.Equal(b1[:1], SIGV2[:1])) {
+		if signature, err := reader.Peek(5); err == nil && bytes.Equal(signature[:5], SIGV1) {
+			return parseVersion1(reader)
+		} else if signature, err := reader.Peek(12); err == nil && bytes.Equal(signature[:12], SIGV2) {
+			return parseVersion2(reader)
+		}
 	}
 
-	return UNSPEC
+	return nil, ErrNoProxyProtocol
+}
+
+// ReadTimeout acts as Read but takes a timeout. If that timeout is reached, it's assumed
+// there's no proxy protocol header.
+func ReadTimeout(reader *bufio.Reader, timeout time.Duration) (*Header, error) {
+	type header struct {
+		h *Header
+		e error
+	}
+	read := make(chan *header, 1)
+
+	go func() {
+		h := &header{}
+		h.h, h.e = Read(reader)
+		read <- h
+	}()
+
+	timer := time.NewTimer(timeout)
+	select {
+	case result := <-read:
+		timer.Stop()
+		return result.h, result.e
+	case <-timer.C:
+		return nil, ErrNoProxyProtocol
+	}
 }
