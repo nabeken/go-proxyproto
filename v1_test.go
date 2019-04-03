@@ -9,111 +9,107 @@ import (
 )
 
 var (
-	TCP4AddressesAndPorts = strings.Join([]string{IP4_ADDR, IP4_ADDR, strconv.Itoa(PORT), strconv.Itoa(PORT)}, SEPARATOR)
-	TCP6AddressesAndPorts = strings.Join([]string{IP6_ADDR, IP6_ADDR, strconv.Itoa(PORT), strconv.Itoa(PORT)}, SEPARATOR)
-
-	fixtureTCP4V1 = "PROXY TCP4 " + TCP4AddressesAndPorts + CRLF + "GET /"
-	fixtureTCP6V1 = "PROXY TCP6 " + TCP6AddressesAndPorts + CRLF + "GET /"
+	tcp4AddrsPorts = IP4_ADDR + v1Sep + IP4_ADDR + v1Sep + strconv.Itoa(PORT) + v1Sep + strconv.Itoa(PORT)
+	tcp6AddrsPorts = IP6_ADDR + v1Sep + IP6_ADDR + v1Sep + strconv.Itoa(PORT) + v1Sep + strconv.Itoa(PORT)
 )
 
-var invalidParseV1Tests = []struct {
-	reader        *bufio.Reader
-	expectedError error
-}{
-	{
-		newBufioReader([]byte("PROX")),
-		ErrNoProxyProtocol,
-	},
-	{
-		newBufioReader([]byte(NO_PROTOCOL)),
-		ErrNoProxyProtocol,
-	},
-	{
-		newBufioReader([]byte("PROXY \r\n")),
-		ErrCantReadProtocolVersionAndCommand,
-	},
-	{
-		newBufioReader([]byte("PROXY TCP4 " + TCP4AddressesAndPorts)),
-		ErrCantReadProtocolVersionAndCommand,
-	},
-	{
-		newBufioReader([]byte("PROXY TCP6 " + TCP4AddressesAndPorts + CRLF)),
-		ErrInvalidAddress,
-	},
-	{
-		newBufioReader([]byte("PROXY TCP4 " + TCP6AddressesAndPorts + CRLF)),
-		ErrInvalidAddress,
-	},
-}
-
 func TestReadV1Invalid(t *testing.T) {
-	for _, tt := range invalidParseV1Tests {
-		if _, err := Read(tt.reader); err != tt.expectedError {
-			t.Fatalf("TestReadV1Invalid: expected %s, actual %s", tt.expectedError, err)
+	for _, tt := range []struct {
+		bytes         []byte
+		expectedError error
+	}{
+		{
+			[]byte("PROX"),
+			ErrNoProxyProtocol,
+		},
+		{
+			[]byte(NO_PROTOCOL),
+			ErrNoProxyProtocol,
+		},
+		{
+			[]byte("PROXY \r\n"),
+			ErrCantReadProtocolVersionAndCommand,
+		},
+		{
+			[]byte("PROXY TCP4 " + tcp4AddrsPorts),
+			ErrCantReadProtocolVersionAndCommand,
+		},
+		{
+			[]byte("PROXY TCP6 " + tcp4AddrsPorts + CRLF),
+			ErrInvalidAddress,
+		},
+		{
+			[]byte("PROXY TCP4 " + tcp6AddrsPorts + CRLF),
+			ErrInvalidAddress,
+		},
+	} {
+		if _, err := Read(newBufioReader(tt.bytes)); err != tt.expectedError {
+			t.Fatalf("'%s': expected '%s', actual '%s'", string(tt.bytes), tt.expectedError, err)
 		}
 	}
 }
 
-var validParseAndWriteV1Tests = []struct {
-	reader         *bufio.Reader
-	expectedHeader *Header
-}{
-	{
-		bufio.NewReader(strings.NewReader(fixtureTCP4V1)),
-		&Header{
-			Version:            1,
-			Command:            PROXY,
-			TransportProtocol:  TCPv4,
-			SourceAddress:      v4addr,
-			DestinationAddress: v4addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+func TestReadWriteV1Valid(t *testing.T) {
+	for _, tt := range []struct {
+		str            string
+		expectedHeader *Header
+	}{
+		{
+			"PROXY TCP4 " + tcp4AddrsPorts + CRLF + "GET /",
+			&Header{
+				Version:            1,
+				Command:            PROXY,
+				TransportProtocol:  TCPv4,
+				SourceAddress:      v4addr,
+				DestinationAddress: v4addr,
+				SourcePort:         PORT,
+				DestinationPort:    PORT,
+			},
 		},
-	},
-	{
-		bufio.NewReader(strings.NewReader(fixtureTCP6V1)),
-		&Header{
-			Version:            1,
-			Command:            PROXY,
-			TransportProtocol:  TCPv6,
-			SourceAddress:      v6addr,
-			DestinationAddress: v6addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+		{
+			"PROXY TCP6 " + tcp6AddrsPorts + CRLF + "GET /",
+			&Header{
+				Version:            1,
+				Command:            PROXY,
+				TransportProtocol:  TCPv6,
+				SourceAddress:      v6addr,
+				DestinationAddress: v6addr,
+				SourcePort:         PORT,
+				DestinationPort:    PORT,
+			},
 		},
-	},
-}
+	} {
+		t.Run("Parse valid v1 header", func(t *testing.T) {
+			t.Run(tt.str, func(t *testing.T) {
+				actual, err := Read(bufio.NewReader(strings.NewReader(tt.str)))
+				if err != nil {
+					t.Fatal("unexpected error:", err)
+				}
+				if !actual.EqualTo(tt.expectedHeader) {
+					t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
+				}
+			})
+		})
 
-func TestParseV1Valid(t *testing.T) {
-	for _, tt := range validParseAndWriteV1Tests {
-		header, err := Read(tt.reader)
-		if err != nil {
-			t.Fatal("TestParseV1Valid: unexpected error", err.Error())
-		}
-		if !header.EqualTo(tt.expectedHeader) {
-			t.Fatalf("TestParseV1Valid: expected %#v, actual %#v", tt.expectedHeader, header)
-		}
-	}
-}
+		t.Run("Write valid v1 header", func(t *testing.T) {
+			t.Run(tt.str, func(t *testing.T) {
+				var b bytes.Buffer
+				bw := bufio.NewWriter(&b)
+				if _, err := tt.expectedHeader.WriteTo(bw); err != nil {
+					t.Fatal("unexpected error:", err)
+				}
+				bw.Flush()
 
-func TestWriteV1Valid(t *testing.T) {
-	for _, tt := range validParseAndWriteV1Tests {
-		var b bytes.Buffer
-		w := bufio.NewWriter(&b)
-		if _, err := tt.expectedHeader.WriteTo(w); err != nil {
-			t.Fatal("TestWriteV1Valid: Unexpected error ", err)
-		}
-		w.Flush()
-
-		// Read written bytes to validate written header
-		r := bufio.NewReader(&b)
-		newHeader, err := Read(r)
-		if err != nil {
-			t.Fatal("TestWriteV1Valid: Unexpected error ", err)
-		}
-
-		if !newHeader.EqualTo(tt.expectedHeader) {
-			t.Fatalf("TestWriteV1Valid: expected %#v, actual %#v", tt.expectedHeader, newHeader)
-		}
+				// Read written bytes to validate written header
+				br := bufio.NewReader(&b)
+				actual, err := Read(br)
+				if err != nil {
+					t.Fatal("unexpected error:", err)
+				}
+				if !actual.EqualTo(tt.expectedHeader) {
+					t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
+				}
+			})
+		})
 	}
 }
