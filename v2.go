@@ -8,26 +8,14 @@ import (
 	"io/ioutil"
 )
 
-var (
-	lengthV4   = uint16(12)
-	lengthV6   = uint16(36)
-	lengthUnix = uint16(218)
+const (
+	v4AddrLen = 12
+	v6AddrLen = 36
+)
 
-	lengthV4Bytes = func() []byte {
-		a := make([]byte, 2)
-		binary.BigEndian.PutUint16(a, lengthV4)
-		return a
-	}()
-	lengthV6Bytes = func() []byte {
-		a := make([]byte, 2)
-		binary.BigEndian.PutUint16(a, lengthV6)
-		return a
-	}()
-	lengthUnixBytes = func() []byte {
-		a := make([]byte, 2)
-		binary.BigEndian.PutUint16(a, lengthUnix)
-		return a
-	}()
+var (
+	fixedV4AddrLen = fixedAddrLen2Bytes(v4AddrLen)
+	fixedV6AddrLen = fixedAddrLen2Bytes(v6AddrLen)
 )
 
 type _ports struct {
@@ -107,21 +95,19 @@ func parseVersion2(br *bufio.Reader) (*Header, error) {
 		if err := binary.Read(lr, binary.BigEndian, &addr); err != nil {
 			return nil, ErrInvalidAddress
 		}
-		hdr.SourceAddress = addr.Src[:]
-		hdr.DestinationAddress = addr.Dst[:]
-		hdr.SourcePort = addr.SrcPort
-		hdr.DestinationPort = addr.DstPort
+		hdr.SrcAddr = addr.Src[:]
+		hdr.DstAddr = addr.Dst[:]
+		hdr.SrcPort = addr.SrcPort
+		hdr.DstPort = addr.DstPort
 	case hdr.TransportProtocol.IsIPv6():
 		var addr _addr6
 		if err := binary.Read(lr, binary.BigEndian, &addr); err != nil {
 			return nil, ErrInvalidAddress
 		}
-		hdr.SourceAddress = addr.Src[:]
-		hdr.DestinationAddress = addr.Dst[:]
-		hdr.SourcePort = addr.SrcPort
-		hdr.DestinationPort = addr.DstPort
-	case hdr.TransportProtocol.IsUnix():
-		// TODO fully support Unix addresses
+		hdr.SrcAddr = addr.Src[:]
+		hdr.DstAddr = addr.Dst[:]
+		hdr.SrcPort = addr.SrcPort
+		hdr.DstPort = addr.DstPort
 	}
 
 	// TODO add encapsulated TLV support
@@ -132,46 +118,36 @@ func parseVersion2(br *bufio.Reader) (*Header, error) {
 	return hdr, nil
 }
 
-func (header *Header) writeVersion2(w io.Writer) (int64, error) {
-	var buf bytes.Buffer
+func (h *Header) writeVersion2(w io.Writer) (int64, error) {
+	buf := &bytes.Buffer{}
 	buf.Write(SIGV2)
-	buf.WriteByte(byte(header.Command))
-	if !header.Command.IsLocal() {
-		buf.WriteByte(byte(header.TransportProtocol))
-		// TODO add encapsulated TLV length
-		var addrSrc, addrDst []byte
-		if header.TransportProtocol.IsIPv4() {
-			buf.Write(lengthV4Bytes)
-			addrSrc = header.SourceAddress.To4()
-			addrDst = header.DestinationAddress.To4()
-		} else if header.TransportProtocol.IsIPv6() {
-			buf.Write(lengthV6Bytes)
-			addrSrc = header.SourceAddress.To16()
-			addrDst = header.DestinationAddress.To16()
-		} else if header.TransportProtocol.IsUnix() {
-			buf.Write(lengthUnixBytes)
-			// TODO is below right?
-			addrSrc = []byte(header.SourceAddress.String())
-			addrDst = []byte(header.DestinationAddress.String())
-		}
-		buf.Write(addrSrc)
-		buf.Write(addrDst)
+	buf.WriteByte(byte(h.Command))
 
-		portSrcBytes := func() []byte {
-			a := make([]byte, 2)
-			binary.BigEndian.PutUint16(a, header.SourcePort)
-			return a
-		}()
-		buf.Write(portSrcBytes)
-
-		portDstBytes := func() []byte {
-			a := make([]byte, 2)
-			binary.BigEndian.PutUint16(a, header.DestinationPort)
-			return a
-		}()
-		buf.Write(portDstBytes)
-
+	if h.Command.IsLocal() {
+		return buf.WriteTo(w)
 	}
 
+	buf.WriteByte(byte(h.TransportProtocol))
+
+	// TODO add encapsulated TLV length
+	switch {
+	case h.TransportProtocol.IsIPv4():
+		buf.Write(fixedV4AddrLen[:])
+		buf.Write(h.SrcAddr.To4())
+		buf.Write(h.DstAddr.To4())
+	case h.TransportProtocol.IsIPv6():
+		buf.Write(fixedV6AddrLen[:])
+		buf.Write(h.SrcAddr.To16())
+		buf.Write(h.DstAddr.To16())
+	}
+
+	binary.Write(buf, binary.BigEndian, h.SrcPort)
+	binary.Write(buf, binary.BigEndian, h.DstPort)
 	return buf.WriteTo(w)
+}
+
+func fixedAddrLen2Bytes(len uint16) [2]byte {
+	var b [2]byte
+	binary.BigEndian.PutUint16(b[:], len)
+	return b
 }

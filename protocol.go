@@ -118,11 +118,9 @@ func (ap AddressFamilyAndProtocol) IsUnspec() bool {
 func validateLeastAddressLen(ap AddressFamilyAndProtocol, len uint16) bool {
 	switch {
 	case ap.IsIPv4():
-		return len >= lengthV4
+		return len >= v4AddrLen
 	case ap.IsIPv6():
-		return len >= lengthV6
-	case ap.IsUnix():
-		return len >= lengthUnix
+		return len >= v6AddrLen
 	}
 	return false
 }
@@ -132,10 +130,10 @@ type Header struct {
 	Version byte
 
 	// v1 and v2
-	SourceAddress      net.IP
-	DestinationAddress net.IP
-	SourcePort         uint16
-	DestinationPort    uint16
+	SrcAddr net.IP
+	DstAddr net.IP
+	SrcPort uint16
+	DstPort uint16
 
 	// v2 specific
 	Command           ProtocolVersionAndCommand
@@ -151,10 +149,10 @@ func (h *Header) EqualTo(q *Header) bool {
 		return true
 	}
 	return h.TransportProtocol == q.TransportProtocol &&
-		h.SourceAddress.String() == q.SourceAddress.String() &&
-		h.DestinationAddress.String() == q.DestinationAddress.String() &&
-		h.SourcePort == q.SourcePort &&
-		h.DestinationPort == q.DestinationPort
+		h.SrcAddr.String() == q.SrcAddr.String() &&
+		h.DstAddr.String() == q.DstAddr.String() &&
+		h.SrcPort == q.SrcPort &&
+		h.DstPort == q.DstPort
 }
 
 // WriteTo renders a proxy protocol header in a format to write over the wire.

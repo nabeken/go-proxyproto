@@ -38,19 +38,19 @@ func parseVersion1(reader *bufio.Reader) (*Header, error) {
 	}
 
 	// Read addresses and ports
-	hdr.SourceAddress, err = parseV1IPAddress(hdr.TransportProtocol, tokens[2])
+	hdr.SrcAddr, err = parseV1IPAddress(hdr.TransportProtocol, tokens[2])
 	if err != nil {
 		return nil, err
 	}
-	hdr.DestinationAddress, err = parseV1IPAddress(hdr.TransportProtocol, tokens[3])
+	hdr.DstAddr, err = parseV1IPAddress(hdr.TransportProtocol, tokens[3])
 	if err != nil {
 		return nil, err
 	}
-	hdr.SourcePort, err = parseV1PortNumber(tokens[4])
+	hdr.SrcPort, err = parseV1PortNumber(tokens[4])
 	if err != nil {
 		return nil, err
 	}
-	hdr.DestinationPort, err = parseV1PortNumber(tokens[5])
+	hdr.DstPort, err = parseV1PortNumber(tokens[5])
 	if err != nil {
 		return nil, err
 	}
@@ -68,18 +68,18 @@ func (h *Header) writeVersion1(w io.Writer) (int64, error) {
 		proto = "TCP6"
 	}
 
-	var buf bytes.Buffer
+	buf := &bytes.Buffer{}
 	buf.Write(SIGV1)
 	buf.WriteString(v1Sep)
 	buf.WriteString(proto)
 	buf.WriteString(v1Sep)
-	buf.WriteString(h.SourceAddress.String())
+	buf.WriteString(h.SrcAddr.String())
 	buf.WriteString(v1Sep)
-	buf.WriteString(h.DestinationAddress.String())
+	buf.WriteString(h.DstAddr.String())
 	buf.WriteString(v1Sep)
-	buf.WriteString(strconv.Itoa(int(h.SourcePort)))
+	buf.WriteString(strconv.Itoa(int(h.SrcPort)))
 	buf.WriteString(v1Sep)
-	buf.WriteString(strconv.Itoa(int(h.DestinationPort)))
+	buf.WriteString(strconv.Itoa(int(h.DstPort)))
 	buf.WriteString(CRLF)
 
 	return buf.WriteTo(w)
