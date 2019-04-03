@@ -9,18 +9,16 @@ import (
 	"strings"
 )
 
-const (
-	CRLF      = "\r\n"
-	SEPARATOR = " "
-)
+const v1Sep = " "
 
 func parseVersion1(reader *bufio.Reader) (*Header, error) {
+
 	// Make sure we have a v1 header
 	line, err := reader.ReadString('\n')
 	if !strings.HasSuffix(line, CRLF) {
 		return nil, ErrCantReadProtocolVersionAndCommand
 	}
-	tokens := strings.Split(line[:len(line)-2], SEPARATOR)
+	tokens := strings.Split(line[:len(line)-2], v1Sep)
 	if len(tokens) < 6 {
 		return nil, ErrCantReadProtocolVersionAndCommand
 	}
@@ -72,15 +70,15 @@ func (h *Header) writeVersion1(w io.Writer) (int64, error) {
 
 	var buf bytes.Buffer
 	buf.Write(SIGV1)
-	buf.WriteString(SEPARATOR)
+	buf.WriteString(v1Sep)
 	buf.WriteString(proto)
-	buf.WriteString(SEPARATOR)
+	buf.WriteString(v1Sep)
 	buf.WriteString(h.SourceAddress.String())
-	buf.WriteString(SEPARATOR)
+	buf.WriteString(v1Sep)
 	buf.WriteString(h.DestinationAddress.String())
-	buf.WriteString(SEPARATOR)
+	buf.WriteString(v1Sep)
 	buf.WriteString(strconv.Itoa(int(h.SourcePort)))
-	buf.WriteString(SEPARATOR)
+	buf.WriteString(v1Sep)
 	buf.WriteString(strconv.Itoa(int(h.DestinationPort)))
 	buf.WriteString(CRLF)
 

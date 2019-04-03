@@ -37,6 +37,8 @@ type ProtocolVersionAndCommand byte
 const (
 	LOCAL = '\x20'
 	PROXY = '\x21'
+
+	CRLF = "\r\n"
 )
 
 func isSupportedCommand(command ProtocolVersionAndCommand) bool {
