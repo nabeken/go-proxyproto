@@ -39,11 +39,11 @@ var (
 
 	// Fixtures to use in tests
 	fixtureIPv4Address  = append(addressesIPv4, ports...)
-	fixtureIPv4V2       = append(lengthV4Bytes, fixtureIPv4Address...)
-	fixtureIPv4V2Padded = append(append(lengthPaddedBytes, fixtureIPv4Address...), make([]byte, lengthPadded-lengthV4)...)
+	fixtureIPv4V2       = append(fixedV4AddrLen[:], fixtureIPv4Address...)
+	fixtureIPv4V2Padded = append(append(lengthPaddedBytes, fixtureIPv4Address...), make([]byte, lengthPadded-v4AddrLen)...)
 	fixtureIPv6Address  = append(addressesIPv6, ports...)
-	fixtureIPv6V2       = append(lengthV6Bytes, fixtureIPv6Address...)
-	fixtureIPv6V2Padded = append(append(lengthPaddedBytes, fixtureIPv6Address...), make([]byte, lengthPadded-lengthV6)...)
+	fixtureIPv6V2       = append(fixedV6AddrLen[:], fixtureIPv6Address...)
+	fixtureIPv6V2Padded = append(append(lengthPaddedBytes, fixtureIPv6Address...), make([]byte, lengthPadded-v6AddrLen)...)
 
 	// Arbitrary bytes following proxy bytes
 	arbitraryTailBytes = []byte{'\x99', '\x97', '\x98'}
@@ -86,11 +86,11 @@ var invalidParseV2Tests = []struct {
 		ErrCantReadLength,
 	},
 	{
-		newBufioReader(append(append(SIGV2, PROXY, TCPv4), lengthV4Bytes...)),
+		newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixedV4AddrLen[:]...)),
 		ErrInvalidLength,
 	},
 	{
-		newBufioReader(append(append(SIGV2, PROXY, TCPv6), lengthV6Bytes...)),
+		newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...)),
 		ErrInvalidLength,
 	},
 	{
@@ -98,7 +98,7 @@ var invalidParseV2Tests = []struct {
 		ErrInvalidLength,
 	},
 	{
-		newBufioReader(append(append(append(SIGV2, PROXY, TCPv6), lengthV6Bytes...), fixtureIPv4Address...)),
+		newBufioReader(append(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...), fixtureIPv4Address...)),
 		ErrInvalidLength,
 	},
 }
@@ -127,52 +127,52 @@ var validParseAndWriteV2Tests = []struct {
 	{
 		newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixtureIPv4V2...)),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  TCPv4,
-			SourceAddress:      v4addr,
-			DestinationAddress: v4addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: TCPv4,
+			SrcAddr:           v4addr,
+			DstAddr:           v4addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 	// PROXY TCP IPv6
 	{
 		newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixtureIPv6V2...)),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  TCPv6,
-			SourceAddress:      v6addr,
-			DestinationAddress: v6addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: TCPv6,
+			SrcAddr:           v6addr,
+			DstAddr:           v6addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 	// PROXY UDP IPv4
 	{
 		newBufioReader(append(append(SIGV2, PROXY, UDPv4), fixtureIPv4V2...)),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  UDPv4,
-			SourceAddress:      v4addr,
-			DestinationAddress: v4addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: UDPv4,
+			SrcAddr:           v4addr,
+			DstAddr:           v4addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 	// PROXY UDP IPv6
 	{
 		newBufioReader(append(append(SIGV2, PROXY, UDPv6), fixtureIPv6V2...)),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  UDPv6,
-			SourceAddress:      v6addr,
-			DestinationAddress: v6addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: UDPv6,
+			SrcAddr:           v6addr,
+			DstAddr:           v6addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 	// TODO add tests for Unix stream and datagram
@@ -220,52 +220,52 @@ var validParseV2PaddedTests = []struct {
 	{
 		append(append(SIGV2, PROXY, TCPv4), fixtureIPv4V2Padded...),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  TCPv4,
-			SourceAddress:      v4addr,
-			DestinationAddress: v4addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: TCPv4,
+			SrcAddr:           v4addr,
+			DstAddr:           v4addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 	// PROXY TCP IPv6
 	{
 		append(append(SIGV2, PROXY, TCPv6), fixtureIPv6V2Padded...),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  TCPv6,
-			SourceAddress:      v6addr,
-			DestinationAddress: v6addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: TCPv6,
+			SrcAddr:           v6addr,
+			DstAddr:           v6addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 	// PROXY UDP IPv4
 	{
 		append(append(SIGV2, PROXY, UDPv4), fixtureIPv4V2Padded...),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  UDPv4,
-			SourceAddress:      v4addr,
-			DestinationAddress: v4addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: UDPv4,
+			SrcAddr:           v4addr,
+			DstAddr:           v4addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 	// PROXY UDP IPv6
 	{
 		append(append(SIGV2, PROXY, UDPv6), fixtureIPv6V2Padded...),
 		&Header{
-			Version:            2,
-			Command:            PROXY,
-			TransportProtocol:  UDPv6,
-			SourceAddress:      v6addr,
-			DestinationAddress: v6addr,
-			SourcePort:         PORT,
-			DestinationPort:    PORT,
+			Version:           2,
+			Command:           PROXY,
+			TransportProtocol: UDPv6,
+			SrcAddr:           v6addr,
+			DstAddr:           v6addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
 		},
 	},
 }

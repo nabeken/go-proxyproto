@@ -57,25 +57,25 @@ func TestReadWriteV1Valid(t *testing.T) {
 		{
 			"PROXY TCP4 " + tcp4AddrsPorts + CRLF + "GET /",
 			&Header{
-				Version:            1,
-				Command:            PROXY,
-				TransportProtocol:  TCPv4,
-				SourceAddress:      v4addr,
-				DestinationAddress: v4addr,
-				SourcePort:         PORT,
-				DestinationPort:    PORT,
+				Version:           1,
+				Command:           PROXY,
+				TransportProtocol: TCPv4,
+				SrcAddr:           v4addr,
+				DstAddr:           v4addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
 			},
 		},
 		{
 			"PROXY TCP6 " + tcp6AddrsPorts + CRLF + "GET /",
 			&Header{
-				Version:            1,
-				Command:            PROXY,
-				TransportProtocol:  TCPv6,
-				SourceAddress:      v6addr,
-				DestinationAddress: v6addr,
-				SourcePort:         PORT,
-				DestinationPort:    PORT,
+				Version:           1,
+				Command:           PROXY,
+				TransportProtocol: TCPv6,
+				SrcAddr:           v6addr,
+				DstAddr:           v6addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
 			},
 		},
 	} {
@@ -93,15 +93,15 @@ func TestReadWriteV1Valid(t *testing.T) {
 
 		t.Run("Write valid v1 header", func(t *testing.T) {
 			t.Run(tt.str, func(t *testing.T) {
-				var b bytes.Buffer
-				bw := bufio.NewWriter(&b)
+				buf := &bytes.Buffer{}
+				bw := bufio.NewWriter(buf)
 				if _, err := tt.expectedHeader.WriteTo(bw); err != nil {
 					t.Fatal("unexpected error:", err)
 				}
 				bw.Flush()
 
 				// Read written bytes to validate written header
-				br := bufio.NewReader(&b)
+				br := bufio.NewReader(buf)
 				actual, err := Read(br)
 				if err != nil {
 					t.Fatal("unexpected error:", err)
