@@ -1,10 +1,7 @@
 package proxyproto
 
 import (
-	"bufio"
-	"net"
 	"testing"
-	"time"
 )
 
 func TestTCPoverIPv4(t *testing.T) {
@@ -83,34 +80,5 @@ func TestProxy(t *testing.T) {
 func TestInvalidProtocolVersion(t *testing.T) {
 	if !ProtocolVersionAndCommand(0x00).IsUnspec() {
 		t.Fail()
-	}
-}
-
-const (
-	NO_PROTOCOL = "There is no spoon"
-	IP4_ADDR    = "127.0.0.1"
-	IP6_ADDR    = "::1"
-	PORT        = 65533
-)
-
-var (
-	v4addr = net.ParseIP(IP4_ADDR).To4()
-	v6addr = net.ParseIP(IP6_ADDR).To16()
-)
-
-type timeoutReader []byte
-
-func (t *timeoutReader) Read([]byte) (int, error) {
-	time.Sleep(500 * time.Millisecond)
-	return 0, nil
-}
-
-func TestReadTimeoutV1Invalid(t *testing.T) {
-	var tr timeoutReader
-	br := bufio.NewReader(&tr)
-	_, err := ReadTimeout(br, 50*time.Millisecond)
-
-	if err != ErrNoProxyProtocol {
-		t.Fatalf("expected %s, actual %s", ErrNoProxyProtocol, err)
 	}
 }

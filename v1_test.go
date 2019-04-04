@@ -3,11 +3,22 @@ package proxyproto
 import (
 	"bufio"
 	"bytes"
+	"net"
 	"strconv"
 	"testing"
 )
 
+const (
+	NO_PROTOCOL = "There is no spoon"
+	IP4_ADDR    = "127.0.0.1"
+	IP6_ADDR    = "::1"
+	PORT        = 65533
+)
+
 var (
+	v4addr = net.ParseIP(IP4_ADDR).To4()
+	v6addr = net.ParseIP(IP6_ADDR).To16()
+
 	tcp4AddrsPorts = IP4_ADDR + v1Sep + IP4_ADDR + v1Sep + strconv.Itoa(PORT) + v1Sep + strconv.Itoa(PORT)
 	tcp6AddrsPorts = IP6_ADDR + v1Sep + IP6_ADDR + v1Sep + strconv.Itoa(PORT) + v1Sep + strconv.Itoa(PORT)
 )
