@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -81,7 +80,7 @@ func TestReadWriteV1Valid(t *testing.T) {
 	} {
 		t.Run("Parse valid v1 header", func(t *testing.T) {
 			t.Run(tt.str, func(t *testing.T) {
-				actual, err := Read(bufio.NewReader(strings.NewReader(tt.str)))
+				actual, err := Read(newBufioReader([]byte(tt.str)))
 				if err != nil {
 					t.Fatal("unexpected error:", err)
 				}

@@ -7,7 +7,13 @@ import (
 )
 
 var (
-	invalidRune = byte('\x99')
+	invalidBytes = []byte{'\x99'}
+	proxyBytes   = []byte{PROXY}
+	localBytes   = []byte{LOCAL}
+	tcpv4Bytes   = []byte{TCPv4}
+	tcpv6Bytes   = []byte{TCPv6}
+	udpv4Bytes   = []byte{UDPv4}
+	udpv6Bytes   = []byte{UDPv6}
 
 	// Lengths to use in tests
 	paddedLen = uint16(84)
@@ -35,60 +41,60 @@ var (
 
 func TestReadV2Invalid(t *testing.T) {
 	for _, tt := range []struct {
-		reader        *bufio.Reader
+		bytes         []byte
 		expectedError error
 	}{
 		{
-			newBufioReader(SIGV2[2:]),
+			SIGV2[2:],
 			ErrNoProxyProtocol,
 		},
 		{
-			newBufioReader([]byte(NO_PROTOCOL)),
+			[]byte(NO_PROTOCOL),
 			ErrNoProxyProtocol,
 		},
 		{
-			newBufioReader(SIGV2),
+			SIGV2,
 			ErrCantReadProtocolVersionAndCommand,
 		},
 		{
-			newBufioReader(append(SIGV2, invalidRune)),
+			catBytes(SIGV2, invalidBytes),
 			ErrUnsupportedProtocolVersionAndCommand,
 		},
 		{
-			newBufioReader(append(SIGV2, PROXY)),
+			catBytes(SIGV2, proxyBytes),
 			ErrCantReadAddressFamilyAndProtocol,
 		},
 		{
-			newBufioReader(append(SIGV2, PROXY, invalidRune)),
+			catBytes(SIGV2, proxyBytes, invalidBytes),
 			ErrUnsupportedAddressFamilyAndProtocol,
 		},
 		{
-			newBufioReader(append(SIGV2, PROXY, TCPv4)),
+			catBytes(SIGV2, proxyBytes, tcpv4Bytes),
 			ErrCantReadLength,
 		},
 		{
-			newBufioReader(append(SIGV2, PROXY, TCPv4, invalidRune)),
+			catBytes(SIGV2, proxyBytes, tcpv4Bytes, invalidBytes),
 			ErrCantReadLength,
 		},
 		{
-			newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixedV4AddrLen[:]...)),
+			catBytes(SIGV2, proxyBytes, tcpv4Bytes, fixedV4AddrLen[:]),
 			ErrInvalidLength,
 		},
 		{
-			newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...)),
+			catBytes(SIGV2, proxyBytes, tcpv6Bytes, fixedV6AddrLen[:]),
 			ErrInvalidLength,
 		},
 		{
-			newBufioReader(append(append(append(SIGV2, PROXY, TCPv4), emptyAddrLen[:]...), fixtureIPv6Address...)),
+			catBytes(SIGV2, proxyBytes, tcpv4Bytes, emptyAddrLen[:], fixtureIPv6Address),
 			ErrInvalidLength,
 		},
 		{
-			newBufioReader(append(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...), fixtureIPv4Address...)),
+			catBytes(SIGV2, proxyBytes, tcpv6Bytes, fixedV6AddrLen[:], fixtureIPv4Address),
 			ErrInvalidLength,
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			if _, err := Read(tt.reader); err != tt.expectedError {
+			if _, err := Read(newBufioReader(tt.bytes)); err != tt.expectedError {
 				t.Fatalf("expected %s, actual %s", tt.expectedError, err)
 			}
 		})
@@ -97,12 +103,12 @@ func TestReadV2Invalid(t *testing.T) {
 
 func TestReadWriteV2Valid(t *testing.T) {
 	for _, tt := range []struct {
-		reader         *bufio.Reader
+		bytes          []byte
 		expectedHeader *Header
 	}{
 		// LOCAL
 		{
-			newBufioReader(append(SIGV2, LOCAL)),
+			catBytes(SIGV2, localBytes),
 			&Header{
 				Version: 2,
 				Command: LOCAL,
@@ -110,7 +116,7 @@ func TestReadWriteV2Valid(t *testing.T) {
 		},
 		// PROXY TCP IPv4
 		{
-			newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixtureIPv4V2...)),
+			catBytes(SIGV2, proxyBytes, tcpv4Bytes, fixtureIPv4V2),
 			&Header{
 				Version:           2,
 				Command:           PROXY,
@@ -123,7 +129,7 @@ func TestReadWriteV2Valid(t *testing.T) {
 		},
 		// PROXY TCP IPv6
 		{
-			newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixtureIPv6V2...)),
+			catBytes(SIGV2, proxyBytes, tcpv6Bytes, fixtureIPv6V2),
 			&Header{
 				Version:           2,
 				Command:           PROXY,
@@ -136,7 +142,7 @@ func TestReadWriteV2Valid(t *testing.T) {
 		},
 		// PROXY UDP IPv4
 		{
-			newBufioReader(append(append(SIGV2, PROXY, UDPv4), fixtureIPv4V2...)),
+			catBytes(SIGV2, proxyBytes, udpv4Bytes, fixtureIPv4V2),
 			&Header{
 				Version:           2,
 				Command:           PROXY,
@@ -149,7 +155,7 @@ func TestReadWriteV2Valid(t *testing.T) {
 		},
 		// PROXY UDP IPv6
 		{
-			newBufioReader(append(append(SIGV2, PROXY, UDPv6), fixtureIPv6V2...)),
+			catBytes(SIGV2, proxyBytes, udpv6Bytes, fixtureIPv6V2),
 			&Header{
 				Version:           2,
 				Command:           PROXY,
@@ -160,10 +166,9 @@ func TestReadWriteV2Valid(t *testing.T) {
 				DstPort:           PORT,
 			},
 		},
-		// TODO add tests for Unix stream and datagram
 	} {
 		t.Run("Read", func(t *testing.T) {
-			actual, err := Read(tt.reader)
+			actual, err := Read(newBufioReader(tt.bytes))
 			if err != nil {
 				t.Fatal("unexpected error:", err)
 			}
@@ -198,7 +203,7 @@ func TestReadV2Padded(t *testing.T) {
 	payload := []byte{'\x99', '\x97', '\x98'}
 
 	for _, tt := range []struct {
-		value          []byte
+		bytes          []byte
 		expectedHeader *Header
 	}{
 		// PROXY TCP IPv4
@@ -255,7 +260,7 @@ func TestReadV2Padded(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			br := newBufioReader(append(tt.value, payload...))
+			br := newBufioReader(append(tt.bytes, payload...))
 			actual, err := Read(br)
 			if err != nil {
 				t.Fatal("unexpected error:", err)
@@ -276,14 +281,14 @@ func TestReadV2Padded(t *testing.T) {
 	}
 }
 
-func newBufioReader(b []byte) *bufio.Reader {
-	return bufio.NewReader(bytes.NewReader(b))
-}
-
 func catBytes(b ...[]byte) []byte {
 	ret := []byte{}
 	for _, b_ := range b {
 		ret = append(ret, b_...)
 	}
 	return ret
+}
+
+func newBufioReader(b []byte) *bufio.Reader {
+	return bufio.NewReader(bytes.NewReader(b))
 }
