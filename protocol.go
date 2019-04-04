@@ -20,8 +20,6 @@ var (
 	ErrCantReadProtocolVersionAndCommand    = errors.New("Can't read proxy protocol version and command")
 	ErrCantReadAddressFamilyAndProtocol     = errors.New("Can't read address family or protocol")
 	ErrCantReadLength                       = errors.New("Can't read length")
-	ErrCantResolveSourceUnixAddress         = errors.New("Can't resolve source Unix address")
-	ErrCantResolveDestinationUnixAddress    = errors.New("Can't resolve destination Unix address")
 	ErrNoProxyProtocol                      = errors.New("Proxy protocol signature not present")
 	ErrUnknownProxyProtocolVersion          = errors.New("Unknown proxy protocol version")
 	ErrUnsupportedProtocolVersionAndCommand = errors.New("Unsupported proxy protocol version and command")
@@ -68,18 +66,16 @@ func (pvc ProtocolVersionAndCommand) IsUnspec() bool {
 type AddressFamilyAndProtocol byte
 
 const (
-	UNSPEC       = '\x00'
-	TCPv4        = '\x11'
-	UDPv4        = '\x12'
-	TCPv6        = '\x21'
-	UDPv6        = '\x22'
-	UnixStream   = '\x31'
-	UnixDatagram = '\x32'
+	UNSPEC = '\x00'
+	TCPv4  = '\x11'
+	UDPv4  = '\x12'
+	TCPv6  = '\x21'
+	UDPv6  = '\x22'
 )
 
 func isSupportedTransportProtocol(proto AddressFamilyAndProtocol) bool {
 	switch proto {
-	case TCPv4, UDPv4, TCPv6, UDPv6, UnixStream, UnixDatagram:
+	case TCPv4, UDPv4, TCPv6, UDPv6:
 		return true
 	}
 	return false
@@ -93,11 +89,6 @@ func (ap AddressFamilyAndProtocol) IsIPv4() bool {
 // IsIPv6 returns true if the address family is IPv6 (AF_INET6), false otherwise.
 func (ap AddressFamilyAndProtocol) IsIPv6() bool {
 	return 0x20 == ap&0xF0
-}
-
-// IsUnix returns true if the address family is UNIX (AF_UNIX), false otherwise.
-func (ap AddressFamilyAndProtocol) IsUnix() bool {
-	return 0x30 == ap&0xF0
 }
 
 // IsStream returns true if the transport protocol is TCP or STREAM (SOCK_STREAM), false otherwise.

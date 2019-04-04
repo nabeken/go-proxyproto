@@ -47,26 +47,6 @@ func TestUDPoverIPv6(t *testing.T) {
 	}
 }
 
-func TestUnixStream(t *testing.T) {
-	b := byte(UnixStream)
-	if !AddressFamilyAndProtocol(b).IsUnix() {
-		t.Fail()
-	}
-	if !AddressFamilyAndProtocol(b).IsStream() {
-		t.Fail()
-	}
-}
-
-func TestUnixDatagram(t *testing.T) {
-	b := byte(UnixDatagram)
-	if !AddressFamilyAndProtocol(b).IsUnix() {
-		t.Fail()
-	}
-	if !AddressFamilyAndProtocol(b).IsDatagram() {
-		t.Fail()
-	}
-}
-
 func TestInvalidAddressFamilyAndProtocol(t *testing.T) {
 	b := byte(UNSPEC)
 	if !AddressFamilyAndProtocol(b).IsUnspec() {
