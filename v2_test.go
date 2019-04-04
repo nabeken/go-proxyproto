@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"reflect"
 	"testing"
 )
 
@@ -49,247 +48,244 @@ var (
 	arbitraryTailBytes = []byte{'\x99', '\x97', '\x98'}
 )
 
-var invalidParseV2Tests = []struct {
-	reader        *bufio.Reader
-	expectedError error
-}{
-	{
-		newBufioReader(SIGV2[2:]),
-		ErrNoProxyProtocol,
-	},
-	{
-		newBufioReader([]byte(NO_PROTOCOL)),
-		ErrNoProxyProtocol,
-	},
-	{
-		newBufioReader(SIGV2),
-		ErrCantReadProtocolVersionAndCommand,
-	},
-	{
-		newBufioReader(append(SIGV2, invalidRune)),
-		ErrUnsupportedProtocolVersionAndCommand,
-	},
-	{
-		newBufioReader(append(SIGV2, PROXY)),
-		ErrCantReadAddressFamilyAndProtocol,
-	},
-	{
-		newBufioReader(append(SIGV2, PROXY, invalidRune)),
-		ErrUnsupportedAddressFamilyAndProtocol,
-	},
-	{
-		newBufioReader(append(SIGV2, PROXY, TCPv4)),
-		ErrCantReadLength,
-	},
-	{
-		newBufioReader(append(SIGV2, PROXY, TCPv4, invalidRune)),
-		ErrCantReadLength,
-	},
-	{
-		newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixedV4AddrLen[:]...)),
-		ErrInvalidLength,
-	},
-	{
-		newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...)),
-		ErrInvalidLength,
-	},
-	{
-		newBufioReader(append(append(append(SIGV2, PROXY, TCPv4), lengthEmptyBytes...), fixtureIPv6Address...)),
-		ErrInvalidLength,
-	},
-	{
-		newBufioReader(append(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...), fixtureIPv4Address...)),
-		ErrInvalidLength,
-	},
-}
-
-func TestParseV2Invalid(t *testing.T) {
-	for _, tt := range invalidParseV2Tests {
-		if _, err := Read(tt.reader); err != tt.expectedError {
-			t.Fatalf("TestParseV2Invalid: expected %s, actual %s", tt.expectedError, err)
-		}
+func TestReadV2Invalid(t *testing.T) {
+	for _, tt := range []struct {
+		reader        *bufio.Reader
+		expectedError error
+	}{
+		{
+			newBufioReader(SIGV2[2:]),
+			ErrNoProxyProtocol,
+		},
+		{
+			newBufioReader([]byte(NO_PROTOCOL)),
+			ErrNoProxyProtocol,
+		},
+		{
+			newBufioReader(SIGV2),
+			ErrCantReadProtocolVersionAndCommand,
+		},
+		{
+			newBufioReader(append(SIGV2, invalidRune)),
+			ErrUnsupportedProtocolVersionAndCommand,
+		},
+		{
+			newBufioReader(append(SIGV2, PROXY)),
+			ErrCantReadAddressFamilyAndProtocol,
+		},
+		{
+			newBufioReader(append(SIGV2, PROXY, invalidRune)),
+			ErrUnsupportedAddressFamilyAndProtocol,
+		},
+		{
+			newBufioReader(append(SIGV2, PROXY, TCPv4)),
+			ErrCantReadLength,
+		},
+		{
+			newBufioReader(append(SIGV2, PROXY, TCPv4, invalidRune)),
+			ErrCantReadLength,
+		},
+		{
+			newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixedV4AddrLen[:]...)),
+			ErrInvalidLength,
+		},
+		{
+			newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...)),
+			ErrInvalidLength,
+		},
+		{
+			newBufioReader(append(append(append(SIGV2, PROXY, TCPv4), lengthEmptyBytes...), fixtureIPv6Address...)),
+			ErrInvalidLength,
+		},
+		{
+			newBufioReader(append(append(append(SIGV2, PROXY, TCPv6), fixedV6AddrLen[:]...), fixtureIPv4Address...)),
+			ErrInvalidLength,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			if _, err := Read(tt.reader); err != tt.expectedError {
+				t.Fatalf("expected %s, actual %s", tt.expectedError, err)
+			}
+		})
 	}
 }
 
-var validParseAndWriteV2Tests = []struct {
-	reader         *bufio.Reader
-	expectedHeader *Header
-}{
-	// LOCAL
-	{
-		newBufioReader(append(SIGV2, LOCAL)),
-		&Header{
-			Version: 2,
-			Command: LOCAL,
+func TestReadWriteV2Valid(t *testing.T) {
+	for _, tt := range []struct {
+		reader         *bufio.Reader
+		expectedHeader *Header
+	}{
+		// LOCAL
+		{
+			newBufioReader(append(SIGV2, LOCAL)),
+			&Header{
+				Version: 2,
+				Command: LOCAL,
+			},
 		},
-	},
-	// PROXY TCP IPv4
-	{
-		newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixtureIPv4V2...)),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: TCPv4,
-			SrcAddr:           v4addr,
-			DstAddr:           v4addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+		// PROXY TCP IPv4
+		{
+			newBufioReader(append(append(SIGV2, PROXY, TCPv4), fixtureIPv4V2...)),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: TCPv4,
+				SrcAddr:           v4addr,
+				DstAddr:           v4addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-	// PROXY TCP IPv6
-	{
-		newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixtureIPv6V2...)),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: TCPv6,
-			SrcAddr:           v6addr,
-			DstAddr:           v6addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+		// PROXY TCP IPv6
+		{
+			newBufioReader(append(append(SIGV2, PROXY, TCPv6), fixtureIPv6V2...)),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: TCPv6,
+				SrcAddr:           v6addr,
+				DstAddr:           v6addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-	// PROXY UDP IPv4
-	{
-		newBufioReader(append(append(SIGV2, PROXY, UDPv4), fixtureIPv4V2...)),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: UDPv4,
-			SrcAddr:           v4addr,
-			DstAddr:           v4addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+		// PROXY UDP IPv4
+		{
+			newBufioReader(append(append(SIGV2, PROXY, UDPv4), fixtureIPv4V2...)),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: UDPv4,
+				SrcAddr:           v4addr,
+				DstAddr:           v4addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-	// PROXY UDP IPv6
-	{
-		newBufioReader(append(append(SIGV2, PROXY, UDPv6), fixtureIPv6V2...)),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: UDPv6,
-			SrcAddr:           v6addr,
-			DstAddr:           v6addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+		// PROXY UDP IPv6
+		{
+			newBufioReader(append(append(SIGV2, PROXY, UDPv6), fixtureIPv6V2...)),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: UDPv6,
+				SrcAddr:           v6addr,
+				DstAddr:           v6addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-	// TODO add tests for Unix stream and datagram
-}
+		// TODO add tests for Unix stream and datagram
+	} {
+		t.Run("Read", func(t *testing.T) {
+			actual, err := Read(tt.reader)
+			if err != nil {
+				t.Fatal("unexpected error:", err)
+			}
+			if !actual.EqualTo(tt.expectedHeader) {
+				t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
+			}
+		})
 
-func TestParseV2Valid(t *testing.T) {
-	for _, tt := range validParseAndWriteV2Tests {
-		header, err := Read(tt.reader)
-		if err != nil {
-			t.Fatal("TestParseV2Valid: unexpected error", err.Error())
-		}
-		if !header.EqualTo(tt.expectedHeader) {
-			t.Fatalf("TestParseV2Valid: expected %#v, actual %#v", tt.expectedHeader, header)
-		}
+		t.Run("Write", func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			bw := bufio.NewWriter(buf)
+			if _, err := tt.expectedHeader.WriteTo(bw); err != nil {
+				t.Fatal("unexpected error:", err)
+			}
+			bw.Flush()
+
+			// Read written bytes to validate written header
+			br := bufio.NewReader(buf)
+			actual, err := Read(br)
+			if err != nil {
+				t.Fatal("unexpected error:", err)
+			}
+
+			if !actual.EqualTo(tt.expectedHeader) {
+				t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
+			}
+		})
 	}
 }
 
-func TestWriteV2Valid(t *testing.T) {
-	for _, tt := range validParseAndWriteV2Tests {
-		var b bytes.Buffer
-		w := bufio.NewWriter(&b)
-		if _, err := tt.expectedHeader.WriteTo(w); err != nil {
-			t.Fatal("TestWriteVersion2: Unexpected error ", err)
-		}
-		w.Flush()
-
-		// Read written bytes to validate written header
-		r := bufio.NewReader(&b)
-		newHeader, err := Read(r)
-		if err != nil {
-			t.Fatal("TestWriteVersion2: Unexpected error ", err)
-		}
-
-		if !newHeader.EqualTo(tt.expectedHeader) {
-			t.Fatalf("TestWriteVersion2: expected %#v, actual %#v", tt.expectedHeader, newHeader)
-		}
-	}
-}
-
-var validParseV2PaddedTests = []struct {
-	value          []byte
-	expectedHeader *Header
-}{
-	// PROXY TCP IPv4
-	{
-		append(append(SIGV2, PROXY, TCPv4), fixtureIPv4V2Padded...),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: TCPv4,
-			SrcAddr:           v4addr,
-			DstAddr:           v4addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+func TestReadV2Padded(t *testing.T) {
+	for _, tt := range []struct {
+		value          []byte
+		expectedHeader *Header
+	}{
+		// PROXY TCP IPv4
+		{
+			append(append(SIGV2, PROXY, TCPv4), fixtureIPv4V2Padded...),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: TCPv4,
+				SrcAddr:           v4addr,
+				DstAddr:           v4addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-	// PROXY TCP IPv6
-	{
-		append(append(SIGV2, PROXY, TCPv6), fixtureIPv6V2Padded...),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: TCPv6,
-			SrcAddr:           v6addr,
-			DstAddr:           v6addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+		// PROXY TCP IPv6
+		{
+			append(append(SIGV2, PROXY, TCPv6), fixtureIPv6V2Padded...),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: TCPv6,
+				SrcAddr:           v6addr,
+				DstAddr:           v6addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-	// PROXY UDP IPv4
-	{
-		append(append(SIGV2, PROXY, UDPv4), fixtureIPv4V2Padded...),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: UDPv4,
-			SrcAddr:           v4addr,
-			DstAddr:           v4addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+		// PROXY UDP IPv4
+		{
+			append(append(SIGV2, PROXY, UDPv4), fixtureIPv4V2Padded...),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: UDPv4,
+				SrcAddr:           v4addr,
+				DstAddr:           v4addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-	// PROXY UDP IPv6
-	{
-		append(append(SIGV2, PROXY, UDPv6), fixtureIPv6V2Padded...),
-		&Header{
-			Version:           2,
-			Command:           PROXY,
-			TransportProtocol: UDPv6,
-			SrcAddr:           v6addr,
-			DstAddr:           v6addr,
-			SrcPort:           PORT,
-			DstPort:           PORT,
+		// PROXY UDP IPv6
+		{
+			append(append(SIGV2, PROXY, UDPv6), fixtureIPv6V2Padded...),
+			&Header{
+				Version:           2,
+				Command:           PROXY,
+				TransportProtocol: UDPv6,
+				SrcAddr:           v6addr,
+				DstAddr:           v6addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
 		},
-	},
-}
+	} {
+		t.Run("", func(t *testing.T) {
+			br := newBufioReader(append(tt.value, arbitraryTailBytes...))
+			actual, err := Read(br)
+			if err != nil {
+				t.Fatal("unexpected error:", err)
+			}
+			if !actual.EqualTo(tt.expectedHeader) {
+				t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
+			}
 
-func TestParseV2Padded(t *testing.T) {
-	for _, tt := range validParseV2PaddedTests {
-		reader := newBufioReader(append(tt.value, arbitraryTailBytes...))
-
-		newHeader, err := Read(reader)
-		if err != nil {
-			t.Fatal("TestParseV2Padded: Unexpected error ", err)
-		}
-		if !newHeader.EqualTo(tt.expectedHeader) {
-			t.Fatalf("TestParseV2Padded: expected %#v, actual %#v", tt.expectedHeader, newHeader)
-		}
-
-		// Check that remaining padding bytes have been flushed
-		nextBytes, err := reader.Peek(len(arbitraryTailBytes))
-		if err != nil {
-			t.Fatal("TestParseV2Padded: Unexpected error ", err)
-		}
-		if !reflect.DeepEqual(nextBytes, arbitraryTailBytes) {
-			t.Fatalf("TestParseV2Padded: expected %#v, actual %#v", arbitraryTailBytes, nextBytes)
-		}
+			// Check that remaining padding bytes have been flushed
+			nextBytes, err := br.Peek(len(arbitraryTailBytes))
+			if err != nil {
+				t.Fatal("unexpected error:", err)
+			}
+			if !bytes.Equal(nextBytes, arbitraryTailBytes) {
+				t.Fatalf("expected %#v, actual %#v", arbitraryTailBytes, nextBytes)
+			}
+		})
 	}
 }
 
