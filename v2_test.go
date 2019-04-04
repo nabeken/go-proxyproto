@@ -3,7 +3,6 @@ package proxyproto
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"testing"
 )
 
@@ -11,38 +10,27 @@ var (
 	invalidRune = byte('\x99')
 
 	// Lengths to use in tests
-	lengthPadded = uint16(84)
+	paddedLen = uint16(84)
 
-	lengthEmptyBytes = func() []byte {
-		a := make([]byte, 2)
-		binary.BigEndian.PutUint16(a, 0)
-		return a
-	}()
-	lengthPaddedBytes = func() []byte {
-		a := make([]byte, 2)
-		binary.BigEndian.PutUint16(a, lengthPadded)
-		return a
-	}()
+	emptyAddrLen  = writeUint16ByBE(0)
+	paddedAddrLen = writeUint16ByBE(paddedLen)
 
 	// If life gives you lemons, make mojitos
-	portBytes = func() []byte {
-		a := make([]byte, 2)
-		binary.BigEndian.PutUint16(a, PORT)
-		return a
-	}()
+	portBytes = writeUint16ByBE(PORT)
 
 	// Tests don't care if source and destination addresses and ports are the same
-	addressesIPv4 = append(v4addr.To4(), v4addr.To4()...)
-	addressesIPv6 = append(v6addr.To16(), v6addr.To16()...)
-	ports         = append(portBytes, portBytes...)
+	addressesIPv4 = catBytes(v4addr.To4(), v4addr.To4())
+	addressesIPv6 = catBytes(v6addr.To16(), v6addr.To16())
+	ports         = catBytes(portBytes[:], portBytes[:])
 
 	// Fixtures to use in tests
-	fixtureIPv4Address  = append(addressesIPv4, ports...)
-	fixtureIPv4V2       = append(fixedV4AddrLen[:], fixtureIPv4Address...)
-	fixtureIPv4V2Padded = append(append(lengthPaddedBytes, fixtureIPv4Address...), make([]byte, lengthPadded-v4AddrLen)...)
-	fixtureIPv6Address  = append(addressesIPv6, ports...)
-	fixtureIPv6V2       = append(fixedV6AddrLen[:], fixtureIPv6Address...)
-	fixtureIPv6V2Padded = append(append(lengthPaddedBytes, fixtureIPv6Address...), make([]byte, lengthPadded-v6AddrLen)...)
+	fixtureIPv4Address  = catBytes(addressesIPv4, ports)
+	fixtureIPv4V2       = catBytes(fixedV4AddrLen[:], fixtureIPv4Address)
+	fixtureIPv4V2Padded = append(append(paddedAddrLen[:], fixtureIPv4Address...), make([]byte, paddedLen-v4AddrLen)...)
+
+	fixtureIPv6Address  = catBytes(addressesIPv6, ports)
+	fixtureIPv6V2       = catBytes(fixedV6AddrLen[:], fixtureIPv6Address)
+	fixtureIPv6V2Padded = append(append(paddedAddrLen[:], fixtureIPv6Address...), make([]byte, paddedLen-v6AddrLen)...)
 
 	// Arbitrary bytes following proxy bytes
 	arbitraryTailBytes = []byte{'\x99', '\x97', '\x98'}
@@ -94,7 +82,7 @@ func TestReadV2Invalid(t *testing.T) {
 			ErrInvalidLength,
 		},
 		{
-			newBufioReader(append(append(append(SIGV2, PROXY, TCPv4), lengthEmptyBytes...), fixtureIPv6Address...)),
+			newBufioReader(append(append(append(SIGV2, PROXY, TCPv4), emptyAddrLen[:]...), fixtureIPv6Address...)),
 			ErrInvalidLength,
 		},
 		{
@@ -291,4 +279,12 @@ func TestReadV2Padded(t *testing.T) {
 
 func newBufioReader(b []byte) *bufio.Reader {
 	return bufio.NewReader(bytes.NewReader(b))
+}
+
+func catBytes(b ...[]byte) []byte {
+	ret := []byte{}
+	for _, b_ := range b {
+		ret = append(ret, b_...)
+	}
+	return ret
 }

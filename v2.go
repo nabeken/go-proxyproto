@@ -14,8 +14,8 @@ const (
 )
 
 var (
-	fixedV4AddrLen = fixedAddrLen2Bytes(v4AddrLen)
-	fixedV6AddrLen = fixedAddrLen2Bytes(v6AddrLen)
+	fixedV4AddrLen = writeUint16ByBE(v4AddrLen)
+	fixedV6AddrLen = writeUint16ByBE(v6AddrLen)
 )
 
 type _ports struct {
@@ -146,8 +146,8 @@ func (h *Header) writeVersion2(w io.Writer) (int64, error) {
 	return buf.WriteTo(w)
 }
 
-func fixedAddrLen2Bytes(len uint16) [2]byte {
+func writeUint16ByBE(i uint16) [2]byte {
 	var b [2]byte
-	binary.BigEndian.PutUint16(b[:], len)
+	binary.BigEndian.PutUint16(b[:], i)
 	return b
 }
