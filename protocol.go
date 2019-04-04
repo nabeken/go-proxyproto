@@ -140,21 +140,6 @@ type Header struct {
 	TransportProtocol AddressFamilyAndProtocol
 }
 
-// EqualTo returns true if headers are equivalent, false otherwise.
-func (h *Header) EqualTo(q *Header) bool {
-	if h == nil || q == nil {
-		return false
-	}
-	if h.Command.IsLocal() {
-		return true
-	}
-	return h.TransportProtocol == q.TransportProtocol &&
-		h.SrcAddr.String() == q.SrcAddr.String() &&
-		h.DstAddr.String() == q.DstAddr.String() &&
-		h.SrcPort == q.SrcPort &&
-		h.DstPort == q.DstPort
-}
-
 // WriteTo renders a proxy protocol header in a format to write over the wire.
 func (h *Header) WriteTo(w io.Writer) (int64, error) {
 	switch h.Version {

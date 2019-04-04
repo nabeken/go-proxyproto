@@ -84,7 +84,7 @@ func TestReadWriteV1Valid(t *testing.T) {
 				if err != nil {
 					t.Fatal("unexpected error:", err)
 				}
-				if !actual.EqualTo(tt.expectedHeader) {
+				if !assertHeader(actual, tt.expectedHeader) {
 					t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
 				}
 			})
@@ -105,7 +105,7 @@ func TestReadWriteV1Valid(t *testing.T) {
 				if err != nil {
 					t.Fatal("unexpected error:", err)
 				}
-				if !actual.EqualTo(tt.expectedHeader) {
+				if !assertHeader(actual, tt.expectedHeader) {
 					t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
 				}
 			})

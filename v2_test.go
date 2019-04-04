@@ -172,7 +172,7 @@ func TestReadWriteV2Valid(t *testing.T) {
 			if err != nil {
 				t.Fatal("unexpected error:", err)
 			}
-			if !actual.EqualTo(tt.expectedHeader) {
+			if !assertHeader(actual, tt.expectedHeader) {
 				t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
 			}
 		})
@@ -192,7 +192,7 @@ func TestReadWriteV2Valid(t *testing.T) {
 				t.Fatal("unexpected error:", err)
 			}
 
-			if !actual.EqualTo(tt.expectedHeader) {
+			if !assertHeader(actual, tt.expectedHeader) {
 				t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
 			}
 		})
@@ -265,7 +265,7 @@ func TestReadV2Padded(t *testing.T) {
 			if err != nil {
 				t.Fatal("unexpected error:", err)
 			}
-			if !actual.EqualTo(tt.expectedHeader) {
+			if !assertHeader(actual, tt.expectedHeader) {
 				t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
 			}
 
@@ -291,4 +291,19 @@ func catBytes(b ...[]byte) []byte {
 
 func newBufioReader(b []byte) *bufio.Reader {
 	return bufio.NewReader(bytes.NewReader(b))
+}
+
+// assertHeader returns true if the given two headers are equivalent or h1 is LOCAL.
+func assertHeader(h1, h2 *Header) bool {
+	if h1 == nil || h2 == nil {
+		return false
+	}
+	if h1.Command.IsLocal() {
+		return true
+	}
+	return h1.TransportProtocol == h2.TransportProtocol &&
+		h1.SrcAddr.String() == h2.SrcAddr.String() &&
+		h1.DstAddr.String() == h2.DstAddr.String() &&
+		h1.SrcPort == h2.SrcPort &&
+		h1.DstPort == h2.DstPort
 }
