@@ -26,14 +26,11 @@ var (
 	// Fixtures to use in tests
 	fixtureIPv4Address  = catBytes(addressesIPv4, ports)
 	fixtureIPv4V2       = catBytes(fixedV4AddrLen[:], fixtureIPv4Address)
-	fixtureIPv4V2Padded = append(append(paddedAddrLen[:], fixtureIPv4Address...), make([]byte, paddedLen-v4AddrLen)...)
+	fixtureIPv4V2Padded = catBytes(paddedAddrLen[:], fixtureIPv4Address, make([]byte, paddedLen-v4AddrLen))
 
 	fixtureIPv6Address  = catBytes(addressesIPv6, ports)
 	fixtureIPv6V2       = catBytes(fixedV6AddrLen[:], fixtureIPv6Address)
-	fixtureIPv6V2Padded = append(append(paddedAddrLen[:], fixtureIPv6Address...), make([]byte, paddedLen-v6AddrLen)...)
-
-	// Arbitrary bytes following proxy bytes
-	arbitraryTailBytes = []byte{'\x99', '\x97', '\x98'}
+	fixtureIPv6V2Padded = catBytes(paddedAddrLen[:], fixtureIPv6Address, make([]byte, paddedLen-v6AddrLen))
 )
 
 func TestReadV2Invalid(t *testing.T) {
@@ -198,6 +195,8 @@ func TestReadWriteV2Valid(t *testing.T) {
 }
 
 func TestReadV2Padded(t *testing.T) {
+	payload := []byte{'\x99', '\x97', '\x98'}
+
 	for _, tt := range []struct {
 		value          []byte
 		expectedHeader *Header
@@ -256,7 +255,7 @@ func TestReadV2Padded(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			br := newBufioReader(append(tt.value, arbitraryTailBytes...))
+			br := newBufioReader(append(tt.value, payload...))
 			actual, err := Read(br)
 			if err != nil {
 				t.Fatal("unexpected error:", err)
@@ -266,12 +265,12 @@ func TestReadV2Padded(t *testing.T) {
 			}
 
 			// Check that remaining padding bytes have been flushed
-			nextBytes, err := br.Peek(len(arbitraryTailBytes))
+			nextBytes, err := br.Peek(len(payload))
 			if err != nil {
 				t.Fatal("unexpected error:", err)
 			}
-			if !bytes.Equal(nextBytes, arbitraryTailBytes) {
-				t.Fatalf("expected %#v, actual %#v", arbitraryTailBytes, nextBytes)
+			if !bytes.Equal(nextBytes, payload) {
+				t.Fatalf("expected %#v, actual %#v", payload, nextBytes)
 			}
 		})
 	}
