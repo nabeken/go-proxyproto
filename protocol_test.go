@@ -106,12 +106,11 @@ func (t *timeoutReader) Read([]byte) (int, error) {
 }
 
 func TestReadTimeoutV1Invalid(t *testing.T) {
-	var b timeoutReader
-	reader := bufio.NewReader(&b)
-	_, err := ReadTimeout(reader, 50*time.Millisecond)
-	if err == nil {
-		t.Fatalf("TestReadTimeoutV1Invalid: expected error %s", ErrNoProxyProtocol)
-	} else if err != ErrNoProxyProtocol {
-		t.Fatalf("TestReadTimeoutV1Invalid: expected %s, actual %s", ErrNoProxyProtocol, err)
+	var tr timeoutReader
+	br := bufio.NewReader(&tr)
+	_, err := ReadTimeout(br, 50*time.Millisecond)
+
+	if err != ErrNoProxyProtocol {
+		t.Fatalf("expected %s, actual %s", ErrNoProxyProtocol, err)
 	}
 }
