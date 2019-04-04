@@ -151,13 +151,13 @@ func (h *Header) WriteTo(w io.Writer) (int64, error) {
 // If proxy protocol header signature is present but an error is raised while processing
 // the remaining header, assume the reader buffer to be in a corrupt state.
 // Also, this operation will block until enough bytes are available for peeking.
-func Read(reader *bufio.Reader) (*Header, error) {
+func Read(br *bufio.Reader) (*Header, error) {
 	// In order to improve speed for small non-PROXYed packets, take a peek at the first byte alone.
-	if b1, err := reader.Peek(1); err == nil && (bytes.Equal(b1[:1], SIGV1[:1]) || bytes.Equal(b1[:1], SIGV2[:1])) {
-		if signature, err := reader.Peek(5); err == nil && bytes.Equal(signature[:5], SIGV1) {
-			return parseVersion1(reader)
-		} else if signature, err := reader.Peek(12); err == nil && bytes.Equal(signature[:12], SIGV2) {
-			return parseVersion2(reader)
+	if b1, err := br.Peek(1); err == nil && (bytes.Equal(b1[:1], SIGV1[:1]) || bytes.Equal(b1[:1], SIGV2[:1])) {
+		if signature, err := br.Peek(5); err == nil && bytes.Equal(signature[:5], SIGV1) {
+			return parseVersion1(br)
+		} else if signature, err := br.Peek(12); err == nil && bytes.Equal(signature[:12], SIGV2) {
+			return parseVersion2(br)
 		}
 	}
 
