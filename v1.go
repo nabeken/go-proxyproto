@@ -46,11 +46,11 @@ func parseVersion1(reader *bufio.Reader) (*Header, error) {
 	if err != nil {
 		return nil, err
 	}
-	hdr.SrcPort, err = parseV1PortNumber(tokens[4])
+	hdr.SrcPort, err = parseV1Port(tokens[4])
 	if err != nil {
 		return nil, err
 	}
-	hdr.DstPort, err = parseV1PortNumber(tokens[5])
+	hdr.DstPort, err = parseV1Port(tokens[5])
 	if err != nil {
 		return nil, err
 	}
@@ -85,8 +85,7 @@ func (h *Header) writeVersion1(w io.Writer) (int64, error) {
 	return buf.WriteTo(w)
 }
 
-// FIXME add test
-func parseV1PortNumber(portStr string) (uint16, error) {
+func parseV1Port(portStr string) (uint16, error) {
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		return 0, err
@@ -101,7 +100,16 @@ func parseV1PortNumber(portStr string) (uint16, error) {
 func parseV1IPAddress(proto AddressFamilyAndProtocol, addrStr string) (net.IP, error) {
 	addr := net.ParseIP(addrStr)
 	v4 := addr.To4()
-	if (proto == TCPv4 && v4 == nil) || (proto == TCPv6 && v4 != nil) {
+	switch proto {
+	case TCPv4, UDPv4:
+		if v4 == nil {
+			return nil, ErrInvalidAddress
+		}
+	case TCPv6, UDPv6:
+		if v4 != nil {
+			return nil, ErrInvalidAddress
+		}
+	default:
 		return nil, ErrInvalidAddress
 	}
 	return addr, nil

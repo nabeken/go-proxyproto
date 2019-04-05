@@ -3,6 +3,7 @@ package proxyproto
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"net"
 	"strconv"
 	"testing"
@@ -120,6 +121,104 @@ func TestReadWriteV1Valid(t *testing.T) {
 					t.Fatalf("expected %#v, actual %#v", tt.expectedHeader, actual)
 				}
 			})
+		})
+	}
+}
+
+func TestParseV1Port(t *testing.T) {
+	for _, tt := range []struct {
+		PortStr  string
+		Expected uint16
+		IsError  bool
+	}{
+		{
+			PortStr:  "0",
+			Expected: 0,
+		},
+		{
+			PortStr:  "65535",
+			Expected: 65535,
+		},
+		{
+			PortStr: "65536",
+			IsError: true,
+		},
+	} {
+		port, err := parseV1Port(tt.PortStr)
+		if tt.IsError {
+			if err == nil {
+				t.Error("expected error:", err)
+			}
+		} else {
+			if err != nil {
+				t.Error("unexpected error:", err)
+			}
+			if port != tt.Expected {
+				t.Errorf("expected '%d', got '%d'", tt.Expected, port)
+			}
+		}
+	}
+}
+
+func TestParseV1IPAddress(t *testing.T) {
+	for _, tt := range []struct {
+		AddrStr string
+		Proto   AddressFamilyAndProtocol
+		IsError bool
+	}{
+		{
+			AddrStr: "127.0.0.1",
+			Proto:   UNSPEC,
+			IsError: true,
+		},
+		{
+			AddrStr: "127.0.0.1",
+			Proto:   TCPv4,
+		},
+		{
+			AddrStr: "127.0.0.1",
+			Proto:   UDPv4,
+		},
+		{
+			AddrStr: "127.0.0.1",
+			Proto:   TCPv6,
+			IsError: true,
+		},
+		{
+			AddrStr: "127.0.0.1",
+			Proto:   UDPv6,
+			IsError: true,
+		},
+		{
+			AddrStr: "2001:db8:1",
+			Proto:   TCPv4,
+			IsError: true,
+		},
+		{
+			AddrStr: "2001:db8::1",
+			Proto:   UDPv4,
+			IsError: true,
+		},
+		{
+			AddrStr: "2001:db8::1",
+			Proto:   TCPv6,
+		},
+		{
+			AddrStr: "2001:db8::1",
+			Proto:   UDPv6,
+		},
+	} {
+		t.Run(fmt.Sprintf("Addr=%s, Proto=%v", tt.AddrStr, tt.Proto), func(t *testing.T) {
+			_, err := parseV1IPAddress(tt.Proto, tt.AddrStr)
+			if tt.IsError {
+				if err == nil {
+					t.Error("expected error:", err)
+				}
+			} else {
+				if err != nil {
+					t.Error("unexpected error:", err)
+				}
+			}
 		})
 	}
 }
