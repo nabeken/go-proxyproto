@@ -143,7 +143,7 @@ func (h *Header) addr(addr net.IP, port uint16) net.Addr {
 			Port: int(port),
 		}
 	}
-	// return empty IP addr
+	// return empty net.IPAddr to indicate there is no valid address here
 	return &net.IPAddr{}
 }
 
