@@ -11,14 +11,17 @@ import (
 
 const (
 	NO_PROTOCOL = "There is no spoon"
-	IP4_ADDR    = "127.0.0.1"
-	IP6_ADDR    = "::1"
+	IP4_ADDR    = "127.0.0.100"
+	IP6_ADDR    = "::1234"
 	PORT        = 65533
 )
 
 var (
 	v4addr = net.ParseIP(IP4_ADDR).To4()
 	v6addr = net.ParseIP(IP6_ADDR).To16()
+
+	v4AddrPort = v4addr.String() + ":" + strconv.Itoa(PORT)
+	v6AddrPort = v6addr.String() + ":" + strconv.Itoa(PORT)
 
 	tcp4AddrsPorts = IP4_ADDR + v1Sep + IP4_ADDR + v1Sep + strconv.Itoa(PORT) + v1Sep + strconv.Itoa(PORT)
 	tcp6AddrsPorts = IP6_ADDR + v1Sep + IP6_ADDR + v1Sep + strconv.Itoa(PORT) + v1Sep + strconv.Itoa(PORT)

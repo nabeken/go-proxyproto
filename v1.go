@@ -12,7 +12,6 @@ import (
 const v1Sep = " "
 
 func parseVersion1(reader *bufio.Reader) (*Header, error) {
-
 	// Make sure we have a v1 header
 	line, err := reader.ReadString('\n')
 	if !strings.HasSuffix(line, CRLF) {
