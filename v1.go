@@ -96,7 +96,6 @@ func parseV1Port(portStr string) (uint16, error) {
 	return uint16(port), nil
 }
 
-// FIXME add test
 func parseV1IPAddress(proto AddressFamilyAndProtocol, addrStr string) (net.IP, error) {
 	addr := net.ParseIP(addrStr)
 	v4 := addr.To4()
