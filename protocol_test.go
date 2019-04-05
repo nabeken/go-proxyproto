@@ -1,6 +1,7 @@
 package proxyproto
 
 import (
+	"net"
 	"testing"
 )
 
@@ -141,6 +142,81 @@ func TestProtocolVersionAndCommand(t *testing.T) {
 						t.Error("must be false")
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestHeader_Addr(t *testing.T) {
+	tcpv4Addr := &net.TCPAddr{
+		IP:   v4addr,
+		Port: PORT,
+	}
+	udpv4Addr := &net.UDPAddr{
+		IP:   v4addr,
+		Port: PORT,
+	}
+	tcpv6Addr := &net.TCPAddr{
+		IP:   v6addr,
+		Port: PORT,
+	}
+	udpv6Addr := &net.UDPAddr{
+		IP:   v6addr,
+		Port: PORT,
+	}
+	for _, tt := range []struct {
+		Header       *Header
+		ExpectedAddr net.Addr
+	}{
+		{
+			Header: &Header{
+				TransportProtocol: TCPv4,
+				SrcAddr:           v4addr,
+				DstAddr:           v4addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
+			ExpectedAddr: tcpv4Addr,
+		},
+		{
+			Header: &Header{
+				TransportProtocol: UDPv4,
+				SrcAddr:           v4addr,
+				DstAddr:           v4addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
+			ExpectedAddr: udpv4Addr,
+		},
+		{
+			Header: &Header{
+				TransportProtocol: TCPv6,
+				SrcAddr:           v6addr,
+				DstAddr:           v6addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
+			ExpectedAddr: tcpv6Addr,
+		},
+		{
+			Header: &Header{
+				TransportProtocol: UDPv6,
+				SrcAddr:           v6addr,
+				DstAddr:           v6addr,
+				SrcPort:           PORT,
+				DstPort:           PORT,
+			},
+			ExpectedAddr: udpv6Addr,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			for _, actual := range []net.Addr{tt.Header.RemoteAddr(), tt.Header.LocalAddr()} {
+				if actual.Network() != tt.ExpectedAddr.Network() {
+					t.Errorf("expected '%s', got '%s'", tt.ExpectedAddr.Network(), actual.Network())
+				}
+				if actual.String() != tt.ExpectedAddr.String() {
+					t.Errorf("expected '%s', got '%s'", tt.ExpectedAddr.String(), actual.String())
+				}
 			}
 		})
 	}

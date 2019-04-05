@@ -130,6 +130,31 @@ type Header struct {
 	TransportProtocol AddressFamilyAndProtocol
 }
 
+func (h *Header) addr(addr net.IP, port uint16) net.Addr {
+	switch {
+	case h.TransportProtocol.IsStream():
+		return &net.TCPAddr{
+			IP:   addr,
+			Port: int(port),
+		}
+	case h.TransportProtocol.IsDatagram():
+		return &net.UDPAddr{
+			IP:   addr,
+			Port: int(port),
+		}
+	}
+	// return empty IP addr
+	return &net.IPAddr{}
+}
+
+func (h *Header) RemoteAddr() net.Addr {
+	return h.addr(h.SrcAddr, h.SrcPort)
+}
+
+func (h *Header) LocalAddr() net.Addr {
+	return h.addr(h.DstAddr, h.DstPort)
+}
+
 // WriteTo renders a proxy protocol header in a format to write over the wire.
 func (h *Header) WriteTo(w io.Writer) (int64, error) {
 	switch h.Version {
