@@ -11,9 +11,13 @@ import (
 
 const v1Sep = " "
 
-func parseVersion1(reader *bufio.Reader) (*Header, error) {
+func parseVersion1(br *bufio.Reader) (*Header, error) {
 	// Make sure we have a v1 header
-	line, err := reader.ReadString('\n')
+	line, err := br.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+
 	if !strings.HasSuffix(line, CRLF) {
 		return nil, ErrCantReadProtocolVersionAndCommand
 	}
