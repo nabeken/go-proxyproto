@@ -126,7 +126,7 @@ func (p *Conn) Close() error {
 
 func (p *Conn) LocalAddr() net.Addr {
 	p.readHeaderOnce()
-	if isInvalidHeaderAddr(p.header.LocalAddr()) || p.useConnAddr {
+	if p.header == nil || p.useConnAddr {
 		return p.conn.LocalAddr()
 	}
 	return p.header.LocalAddr()
@@ -141,7 +141,7 @@ func (p *Conn) LocalAddr() net.Addr {
 // before Read()
 func (p *Conn) RemoteAddr() net.Addr {
 	p.readHeaderOnce()
-	if isInvalidHeaderAddr(p.header.RemoteAddr()) || p.useConnAddr {
+	if p.header == nil || p.useConnAddr {
 		return p.conn.RemoteAddr()
 	}
 	return p.header.RemoteAddr()
@@ -179,16 +179,9 @@ func (p *Conn) readHeader() error {
 	var err error
 	p.header, err = Read(p.br)
 	if err != nil && err != ErrNoProxyProtocol {
-		// if there is not proxy protocol signature, it should work as if  no proxy protocol
+		// if there is not proxy protocol signature, the further R/W operation just works.
 		return err
 	}
 
 	return nil
-}
-
-func isInvalidHeaderAddr(addr net.Addr) bool {
-	if addr_, ok := addr.(*net.IPAddr); ok && addr_.IP == nil {
-		return true
-	}
-	return false
 }
