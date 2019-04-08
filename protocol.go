@@ -177,13 +177,30 @@ func (h *Header) WriteTo(w io.Writer) (int64, error) {
 // the remaining header, assume the reader buffer to be in a corrupt state.
 // Also, this operation will block until enough bytes are available for peeking.
 func Read(br *bufio.Reader) (*Header, error) {
+	b1, err := br.Peek(1)
+	if err != nil {
+		return nil, ErrNoProxyProtocol
+	}
+
 	// In order to improve speed for small non-PROXYed packets, take a peek at the first byte alone.
-	if b1, err := br.Peek(1); err == nil && (bytes.Equal(b1[:1], SIGV1[:1]) || bytes.Equal(b1[:1], SIGV2[:1])) {
-		if signature, err := br.Peek(5); err == nil && bytes.Equal(signature[:5], SIGV1) {
-			return parseVersion1(br)
-		} else if signature, err := br.Peek(12); err == nil && bytes.Equal(signature[:12], SIGV2) {
-			return parseVersion2(br)
-		}
+	if !bytes.Equal(b1[:1], SIGV1[:1]) && !bytes.Equal(b1[:1], SIGV2[:1]) {
+		return nil, ErrNoProxyProtocol
+	}
+
+	v1Peek, err := br.Peek(5)
+	if err != nil {
+		return nil, ErrNoProxyProtocol
+	}
+	if bytes.Equal(v1Peek[:5], SIGV1) {
+		return parseVersion1(br)
+	}
+
+	v2Sig, err := br.Peek(12)
+	if err != nil {
+		return nil, ErrNoProxyProtocol
+	}
+	if bytes.Equal(v2Sig[:12], SIGV2) {
+		return parseVersion2(br)
 	}
 
 	return nil, ErrNoProxyProtocol
