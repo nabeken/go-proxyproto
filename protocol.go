@@ -74,7 +74,7 @@ const (
 
 func isSupportedTransportProtocol(proto AddressFamilyAndProtocol) bool {
 	switch proto {
-	case TCPv4, UDPv4, TCPv6, UDPv6:
+	case TCPv4, UDPv4, TCPv6, UDPv6, UNSPEC:
 		return true
 	}
 	return false
@@ -111,6 +111,9 @@ func validateLeastAddressLen(ap AddressFamilyAndProtocol, len uint16) bool {
 		return len >= v4AddrLen
 	case ap.IsIPv6():
 		return len >= v6AddrLen
+	case ap.IsUnspec():
+		// just allow any arbitary lengh
+		return true
 	}
 	return false
 }

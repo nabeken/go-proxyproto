@@ -2,6 +2,7 @@ package proxyproto
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"io/ioutil"
 	"net"
@@ -76,13 +77,6 @@ func (c *TestReadWriteCloser) Write(p []byte) (int, error) {
 }
 
 func (c *TestReadWriteCloser) Read(p []byte) (int, error) {
-	var err error
-	c.once.Do(func() {
-		_, err = c.Header.WriteTo(c.Conn)
-	})
-	if err != nil {
-		return 0, err
-	}
 	return c.Conn.Read(p)
 }
 
@@ -217,6 +211,79 @@ func TestConn_ProxyProtoV2(t *testing.T) {
 		}
 		defer rwc.Close()
 		s.AssertClientReadWrite(rwc)
+	}()
+
+	conn := s.MustAccept()
+	defer conn.Close()
+
+	assertV6Addr(t, conn)
+
+	s.AssertReadPing(conn)
+	s.AssertWritePong(conn)
+	s.WaitConnClosed(conn)
+}
+
+func TestConn_ProxyProtoV2_LOCAL(t *testing.T) {
+	s := NewTestServer(t, 0)
+
+	go func() {
+		conn := s.MustClientConn()
+		defer conn.Close()
+
+		buf := &bytes.Buffer{}
+		buf.Write(SIGV2)
+		buf.WriteByte(LOCAL)
+		buf.WriteByte(byte(testV2Header.TransportProtocol))
+		addrLen := writeUint16ByBE(v6AddrLen + 72)
+		buf.Write(addrLen[:])
+		buf.Write(testV2Header.SrcAddr.To16())
+		buf.Write(testV2Header.DstAddr.To16())
+		binary.Write(buf, binary.BigEndian, testV2Header.SrcPort)
+		binary.Write(buf, binary.BigEndian, testV2Header.DstPort)
+
+		// write padding
+		var padding [72]byte
+		buf.Write(padding[:])
+		buf.WriteTo(conn)
+
+		s.AssertClientReadWrite(conn)
+	}()
+
+	conn := s.MustAccept()
+	defer conn.Close()
+
+	// the connection is LOCAL so we give up reading the header
+	s.conns.AssertEqualToOrigin(t)
+
+	s.AssertReadPing(conn)
+	s.AssertWritePong(conn)
+	s.WaitConnClosed(conn)
+}
+
+func TestConn_ProxyProtoV2_Padded(t *testing.T) {
+	s := NewTestServer(t, 0)
+
+	go func() {
+		conn := s.MustClientConn()
+		defer conn.Close()
+
+		buf := &bytes.Buffer{}
+		buf.Write(SIGV2)
+		buf.WriteByte(byte(testV2Header.Command))
+		buf.WriteByte(byte(testV2Header.TransportProtocol))
+		addrLen := writeUint16ByBE(v6AddrLen + 72)
+		buf.Write(addrLen[:])
+		buf.Write(testV2Header.SrcAddr.To16())
+		buf.Write(testV2Header.DstAddr.To16())
+		binary.Write(buf, binary.BigEndian, testV2Header.SrcPort)
+		binary.Write(buf, binary.BigEndian, testV2Header.DstPort)
+
+		// write padding
+		var padding [72]byte
+		buf.Write(padding[:])
+		buf.WriteTo(conn)
+
+		s.AssertClientReadWrite(conn)
 	}()
 
 	conn := s.MustAccept()

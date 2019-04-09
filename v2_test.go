@@ -10,6 +10,7 @@ var (
 	invalidBytes = []byte{'\x99'}
 	proxyBytes   = []byte{PROXY}
 	localBytes   = []byte{LOCAL}
+	unspecBytes  = []byte{UNSPEC}
 	tcpv4Bytes   = []byte{TCPv4}
 	tcpv6Bytes   = []byte{TCPv6}
 	udpv4Bytes   = []byte{UDPv4}
@@ -18,7 +19,6 @@ var (
 	// Lengths to use in tests
 	paddedLen = uint16(84)
 
-	emptyAddrLen  = writeUint16ByBE(0)
 	paddedAddrLen = writeUint16ByBE(paddedLen)
 
 	// If life gives you lemons, make mojitos
@@ -85,7 +85,7 @@ func TestReadV2Invalid(t *testing.T) {
 			ErrInvalidLength,
 		},
 		{
-			catBytes(SIGV2, proxyBytes, tcpv4Bytes, emptyAddrLen[:], fixtureIPv6Address),
+			catBytes(SIGV2, proxyBytes, tcpv4Bytes, fixedEmptyLen[:], fixtureIPv6Address),
 			ErrInvalidLength,
 		},
 		{
@@ -101,19 +101,51 @@ func TestReadV2Invalid(t *testing.T) {
 	}
 }
 
+func TestReadWriteV2Valid_Local(t *testing.T) {
+	// LOCAL
+	headerBytes := catBytes(SIGV2, localBytes, unspecBytes, fixtureIPv4V2)
+
+	{
+		actual, err := Read(newBufioReader(headerBytes))
+		if err != nil {
+			t.Fatal("unexpected error:", err)
+		}
+		if actual != nil {
+			t.Fatal("header must be nil since the proxy protocol shouldn't be involved")
+		}
+	}
+
+	{
+		buf := &bytes.Buffer{}
+		_, err := (&Header{
+			Version:           2,
+			Command:           LOCAL,
+			TransportProtocol: TCPv4,
+			SrcAddr:           v4addr,
+			DstAddr:           v4addr,
+			SrcPort:           PORT,
+			DstPort:           PORT,
+		}).WriteTo(buf)
+		if err != nil {
+			t.Fatal("unexpected error:", err)
+		}
+
+		br := bufio.NewReader(buf)
+		actual, err := Read(br)
+		if err != nil {
+			t.Fatal("unexpected error:", err)
+		}
+		if actual != nil {
+			t.Fatal("header must be nil since the proxy protocol shouldn't be involved")
+		}
+	}
+}
+
 func TestReadWriteV2Valid(t *testing.T) {
 	for _, tt := range []struct {
 		bytes          []byte
 		expectedHeader *Header
 	}{
-		// LOCAL
-		{
-			catBytes(SIGV2, localBytes),
-			&Header{
-				Version: 2,
-				Command: LOCAL,
-			},
-		},
 		// PROXY TCP IPv4
 		{
 			catBytes(SIGV2, proxyBytes, tcpv4Bytes, fixtureIPv4V2),
@@ -294,16 +326,17 @@ func newBufioReader(b []byte) *bufio.Reader {
 }
 
 // assertHeader returns true if the given two headers are equivalent or h1 is LOCAL.
-func assertHeader(h1, h2 *Header) bool {
-	if h1 == nil || h2 == nil {
-		return false
-	}
-	if h1.Command.IsLocal() {
+func assertHeader(actual, expected *Header) bool {
+	if actual == nil && expected == nil {
 		return true
 	}
-	return h1.TransportProtocol == h2.TransportProtocol &&
-		h1.SrcAddr.String() == h2.SrcAddr.String() &&
-		h1.DstAddr.String() == h2.DstAddr.String() &&
-		h1.SrcPort == h2.SrcPort &&
-		h1.DstPort == h2.DstPort
+	if actual == nil || expected == nil {
+		return false
+	}
+
+	return actual.TransportProtocol == expected.TransportProtocol &&
+		actual.SrcAddr.String() == expected.SrcAddr.String() &&
+		actual.DstAddr.String() == expected.DstAddr.String() &&
+		actual.SrcPort == expected.SrcPort &&
+		actual.DstPort == expected.DstPort
 }

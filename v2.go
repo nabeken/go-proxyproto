@@ -16,6 +16,7 @@ const (
 var (
 	fixedV4AddrLen = writeUint16ByBE(v4AddrLen)
 	fixedV6AddrLen = writeUint16ByBE(v6AddrLen)
+	fixedEmptyLen  = writeUint16ByBE(0)
 )
 
 type _ports struct {
@@ -57,11 +58,6 @@ func parseVersion2(br *bufio.Reader) (*Header, error) {
 		return nil, ErrUnsupportedProtocolVersionAndCommand
 	}
 
-	// If command is LOCAL, header ends here
-	if hdr.Command.IsLocal() {
-		return hdr, nil
-	}
-
 	// Read the 14th byte, address family and protocol
 	b14, err := br.ReadByte()
 	if err != nil {
@@ -88,8 +84,23 @@ func parseVersion2(br *bufio.Reader) (*Header, error) {
 	// Length-limited reader for payload section
 	lr := io.LimitReader(br, int64(len))
 
+	// drain the remaining padding
+	defer io.Copy(ioutil.Discard, lr)
+
 	// Read addresses and ports
 	switch {
+	case hdr.Command.IsLocal():
+		// The receiver must accept this connection as valid and must use the
+		// real connection endpoints and discard the protocol block including the
+		// family which is ignored.
+		// When a sender presents a
+		// LOCAL connection, it should not present any address so it sets this field to
+		// zero. Receivers MUST always consider this field to skip the appropriate number
+		// of bytes and must not assume zero is presented for LOCAL connections. When a
+		// receiver accepts an incoming connection showing an UNSPEC address family or
+		// protocol, it may or may not decide to log the address information if present.
+		return nil, nil
+
 	case hdr.TransportProtocol.IsIPv4():
 		var addr _addr4
 		if err := binary.Read(lr, binary.BigEndian, &addr); err != nil {
@@ -112,9 +123,6 @@ func parseVersion2(br *bufio.Reader) (*Header, error) {
 
 	// TODO add encapsulated TLV support
 
-	// Drain the remaining padding
-	io.Copy(ioutil.Discard, lr)
-
 	return hdr, nil
 }
 
@@ -122,12 +130,13 @@ func (h *Header) writeVersion2(w io.Writer) (int64, error) {
 	buf := &bytes.Buffer{}
 	buf.Write(SIGV2)
 	buf.WriteByte(byte(h.Command))
+	buf.WriteByte(byte(h.TransportProtocol))
 
-	if h.Command.IsLocal() {
+	if h.Command.IsLocal() && h.TransportProtocol.IsUnspec() {
+		// terminate with zero length
+		buf.Write(fixedEmptyLen[:])
 		return buf.WriteTo(w)
 	}
-
-	buf.WriteByte(byte(h.TransportProtocol))
 
 	// TODO add encapsulated TLV length
 	switch {
