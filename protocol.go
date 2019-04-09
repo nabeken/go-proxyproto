@@ -117,7 +117,7 @@ func validateLeastAddressLen(ap AddressFamilyAndProtocol, len uint16) bool {
 
 // Header is the placeholder for proxy protocol header.
 type Header struct {
-	Version byte
+	Version int
 
 	// v1 and v2
 	SrcAddr net.IP
