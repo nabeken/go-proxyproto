@@ -13,7 +13,7 @@ which provides, as per specification:
 ## Installation
 
 ```shell
-$ go get -u github.com/pires/go-proxyproto
+$ go get -u github.com/nabeken/go-proxyproto
 ```
 
 ## Usage
